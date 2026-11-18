@@ -1,13 +1,14 @@
 //! `roc-ast` (main.zig), built against roc-lang/roc's own `parse` module at
-//! the commit its own roc-version pins (beside this file): roc-chat's, the
-//! Roc the code Shale's Roc recipes judge is built with. Its own build, not
-//! Shale's: Roc's build.zig runs as its dependency's.
+//! the commit its own roc-version pins (beside this file). Roc's build.zig
+//! runs as its dependency's. Built on GitHub (.github/workflows/build.yml),
+//! static, for the published asset.
 
 const std = @import("std");
 
 // **BUILT WITH THE ZIG THE PINNED ROC BUILDS WITH** (its build.zig.zon's
 // minimum_zig_version), not this repo's: Roc's own build.zig runs as the
-// dependency's, and another Zig refuses it. The box's patched 0.17.0.
+// dependency's, and another Zig refuses it. The patched 0.17.0, which
+// zig-version beside this file names for CI's install.
 comptime {
     const want = std.SemanticVersion{ .major = 0, .minor = 17, .patch = 0 };
     if (@import("builtin").zig_version.order(want) != .eq)
@@ -21,8 +22,8 @@ pub fn build(b: *std.Build) void {
     const options = b.addOptions();
     options.addOption([]const u8, "roc_pin", pin);
     const target = b.standardTargetOptions(.{});
-    // ReleaseSafe unless asked: every Roc recipe runs this program, and Debug
-    // takes about six times the CPU to print the same bytes.
+    // ReleaseSafe unless asked: a tool may run this program on every file it
+    // reads, and Debug takes about six times the CPU to print the same bytes.
     const optimize = b.option(std.builtin.Optimize, "optimize", "the mode to build in (default ReleaseSafe)") orelse .safe;
     const roc = b.dependency("roc", .{ .target = target, .optimize = optimize });
     const exe = b.addExecutable(.{
@@ -42,8 +43,8 @@ pub fn build(b: *std.Build) void {
 }
 
 /// **THE PARSER IS THE COMPILER'S**: build.zig.zon's roc must be the commit
-/// the roc-version beside it names, or the tree is of a language our compiler may
-/// not speak. A roc-version bump fails here until the dependency moves too.
+/// the roc-version beside it names, or the tree is of a language the pinned
+/// compiler may not speak. A roc-version bump fails here until the dependency moves too.
 /// Gives the pin, the whole `roc-version` line.
 fn checkPin(b: *std.Build) []const u8 {
     const io = b.graph.io;

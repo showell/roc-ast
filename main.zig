@@ -2,26 +2,16 @@
 //! on stdin (one a line), `== <path>` and then the file's tree as the
 //! compiler's snapshot tests print it (`AST.toSExprStr`, with line and
 //! column). The parser is roc-lang/roc's, at the commit roc-version pins, so
-//! the tree is what our compiler accepts. Shale hunts over the output.
+//! the tree is what that compiler accepts.
 //!
 //! A file that does not parse cleanly is a failure, named, never a tree.
 //!
-//! **`--flat`: THE SAME TREE, WRITTEN FLAT FOR A PROGRAM** (Shale's `roc_tree` reads it):
-//! the tree Roc's printer would print, walked in memory and written one fact
-//! a line, so nothing is guessed back out of a layout made for eyes. The first
-//! line says the format and whose parser: `roc-ast flat 1 <roc-version>`; a
-//! change a reader must know of is a new number. Then:
-//!   `n<TAB>parent<TAB>kind<TAB>line<TAB>col<TAB>end_line<TAB>end_col`
-//!   `a<TAB>node<TAB>name<TAB>value`
-//! Nodes are numbered from 1 in each file, in the order the printer prints
-//! them (a node, then its head items, then the children on lines of their
-//! own); `parent` 0 is the root's, and a node without a span has 0s. A
-//! value escapes `\`, tab, newline and carriage return as `\\`, `\t`, `\n`,
-//! `\r`. As the printer lays it out (a node's line is its head items, or with
-//! none its first child): on a node's own line, `(name value)` is
-//! an attribute and any other `(...)` a child node; on a line of its own,
-//! every `(...)` is a child node; a string or atom anywhere is the
-//! node's `value`.
+//! **`--flat`: THE SAME TREE, WRITTEN FLAT FOR A PROGRAM**: the tree Roc's
+//! printer would print, walked in memory and written one fact a line, so
+//! nothing is guessed back out of a layout made for eyes. FORMAT.md, beside
+//! this file, is its contract: the header line, the node and attribute
+//! lines, the escapes and the exit codes. `Tree.node` below is the walk, and
+//! `flat_format` the number a change a reader must know of moves.
 
 const std = @import("std");
 const base = @import("base");

@@ -1,0 +1,88 @@
+-- roc-ast held to its fixtures, the files in tests/, each run judged by its
+-- exit, the trees it writes and some of its lines. Run from this checkout:
+--   shale test.shale
+--   shale test.shale exe=<mount>:<path>/bin/roc-ast
+-- Without `exe=` it runs the roc-ast installed for this tree's pin
+-- (`tools:roc-ast-<pin>/bin/roc-ast`, else `tools:roc-ast/bin/roc-ast`);
+-- `exe=` names another, such as a build workflow run's artifact before it
+-- is published. The runs:
+--   greet        a small module, --flat: the header names the format and
+--                the pin, and its nodes and attributes are there;
+--   broken       a file that does not parse, --flat: exit 1, no tree, and
+--                stderr names the file;
+--   then_broken  greet, then broken, in one run: greet's tree is written,
+--                broken's is not, and the run exits 1;
+--   plain        greet without --flat: the tree as Roc's printer prints it;
+--   bad_arg      an argument other than --flat: exit 2.
+-- The build workflow's Smoke and Fixtures steps run greet and broken on
+-- every build, by their exits, header and trees.
+
+const EXE = arg("exe", "")
+const GREET = "tests/greet.roc"
+const BROKEN = "tests/broken.roc"
+
+function default_exe()
+  local pin = trim(read("roc-version"))
+  local own = "tools:roc-ast-" .. pin .. "/bin/roc-ast"
+  if exists(own) then return own end
+  return "tools:roc-ast/bin/roc-ast"
+end
+
+-- The `--flat` format's number, as main.zig's `flat_format` says it.
+function flat_format()
+  for h in grep("main.zig", "const flat_format = ") do
+    local r = re_find(h.text, "const flat_format = (\\d+);")
+    if r ~= nil then return r.group end
+  end
+  fail("roc-ast test: main.zig has no `const flat_format = N;`")
+  return ""
+end
+
+-- One run judged against `want`: `code` (its exit), `trees` (the `== path`
+-- lines it must write, in order, and no others), `has` (lines it must hold)
+-- and `says` (literals its output must hold).
+function judge(exe, name, args, paths, want, failures)
+  local argv = {real(exe)}
+  for a in args do push(argv, a) end
+  local r = run(argv, {stdin = join(paths, "\n") .. "\n", timeout_ms = 60000, whole = 4000000})
+  local ls = lines(r.out)
+  local trees = {}
+  for l in ls do
+    if starts_with(l, "== ") then push(trees, sub(l, 4)) end
+  end
+  local wrong = {}
+  if r.ended ~= "exit" or r.code ~= want.code then push(wrong, "exited " .. (r.ended == "exit" and r.code or r.ended) .. ", want " .. want.code) end
+  if join(trees, ", ") ~= join(want.trees, ", ") then push(wrong, "wrote trees for [" .. join(trees, ", ") .. "], want [" .. join(want.trees, ", ") .. "]") end
+  for h in get(want, "has", {}) do
+    if not has_item(ls, h) then push(wrong, "no line `" .. h .. "`") end
+  end
+  for s in get(want, "says", {}) do
+    if not contains(r.out, s) then push(wrong, "the output doesn't say `" .. s .. "`") end
+  end
+  if #wrong == 0 then
+    print("ok    " .. name)
+  else
+    for w in wrong do print("FAIL  " .. name .. ": " .. w) end
+    for l in slice(ls, 1, 12) do print("        " .. l) end
+    failures.count = failures.count + 1
+  end
+  return nil
+end
+
+local exe = EXE ~= "" and EXE or default_exe()
+if not exists(exe) then fail("roc-ast test: no " .. exe .. ": `shale install.shale` installs it, or give exe=") end
+print("roc-ast test: " .. exe)
+local header = "roc-ast flat " .. flat_format() .. " " .. trim(read("roc-version"))
+local failures = {count = 0}
+judge(exe, "greet", {"--flat"}, {GREET}, {code = 0, trees = {GREET},
+  has = {header, "n\t0\tfile\t1\t1\t4\t31", "n\t11\te-lambda\t4\t9\t4\t31", "a\t15\traw\tname", "a\t17\traw\thello "}}, failures)
+judge(exe, "broken", {"--flat"}, {BROKEN}, {code = 1, trees = {},
+  has = {header}, says = {BROKEN .. ": ", "parse problem"}}, failures)
+judge(exe, "then_broken", {"--flat"}, {GREET, BROKEN}, {code = 1, trees = {GREET},
+  has = {header, "n\t11\te-lambda\t4\t9\t4\t31"}, says = {BROKEN .. ": "}}, failures)
+judge(exe, "plain", {}, {GREET}, {code = 0, trees = {GREET},
+  says = {"(e-lambda @4.9-4.31"}}, failures)
+judge(exe, "bad_arg", {"--tree"}, {GREET}, {code = 2, trees = {},
+  says = {"the one argument is --flat"}}, failures)
+if failures.count > 0 then fail("roc-ast test: " .. failures.count .. " of 5 runs failed") end
+print("roc-ast test: 5 runs as they say")

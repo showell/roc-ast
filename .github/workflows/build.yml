@@ -1,0 +1,91 @@
+# roc-ast built into the asset install.shale installs, on demand only
+# (`gh workflow run build.yml -f ref=<ref>`), never on a push or a PR. The
+# tarball is the run's artifact (`gh run download`), its sha256 in the log;
+# publishing it as a release of this repo, and moving `release` to it, is by
+# hand.
+name: build
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "The roc-ast branch, tag or commit to build"
+        default: master
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          path: roc-ast
+
+      # roc-ast builds with the Zig the pinned Roc builds with, which
+      # zig-version names.
+      - name: Install Zig
+        working-directory: roc-ast
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/showell/patched-zig-compiler/main/tools/get_zig.sh | sh
+          echo "$HOME/zig-$(tr -d '[:space:]' < zig-version)" >> "$GITHUB_PATH"
+
+      # The archive build.zig.zon pins leaves out vendor/, which Roc's
+      # modules import, so the build forks to a full checkout of the commit.
+      - name: Roc at the pin
+        run: |
+          commit=$(grep -o 'archive/[0-9a-f]*' roc-ast/build.zig.zon | cut -d/ -f2)
+          git init -q roc && cd roc
+          git remote add origin https://github.com/roc-lang/roc.git
+          git fetch -q --depth 1 origin "$commit"
+          git checkout -q FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$commit"
+
+      - name: Build roc-ast
+        working-directory: roc-ast
+        run: |
+          zig version
+          zig build --fork="$GITHUB_WORKSPACE/roc" -Dtarget=x86_64-linux-musl -Dcpu=baseline --prefix "$GITHUB_WORKSPACE/out"
+          test -x "$GITHUB_WORKSPACE/out/bin/roc-ast"
+
+      # The header is the format's and the pin's (FORMAT.md), and the small
+      # module's tree is there.
+      - name: Smoke
+        working-directory: roc-ast
+        run: |
+          format=$(sed -n 's/^const flat_format = \([0-9]*\);$/\1/p' main.zig)
+          version=$(tr -d '[:space:]' < roc-version)
+          echo tests/greet.roc | "$GITHUB_WORKSPACE/out/bin/roc-ast" --flat > /tmp/greet.out
+          test "$(head -n 1 /tmp/greet.out)" = "roc-ast flat $format $version"
+          grep -qx '== tests/greet.roc' /tmp/greet.out
+          grep -qP '^n\t11\te-lambda\t4\t9\t4\t31$' /tmp/greet.out
+          grep -cP '^n\t' /tmp/greet.out
+
+      # The fixtures of test.shale: a file that does not parse is refused,
+      # exit 1, with no tree written. An asset that fails here is never
+      # built.
+      - name: Fixtures
+        working-directory: roc-ast
+        run: |
+          bin="$GITHUB_WORKSPACE/out/bin/roc-ast"
+          if echo tests/broken.roc | "$bin" --flat > /tmp/broken.out 2> /tmp/broken.err; then exit 1; fi
+          if grep -q '^== ' /tmp/broken.out; then exit 1; fi
+          grep -q '^tests/broken.roc: .*parse problem' /tmp/broken.err
+
+      - name: Tarball
+        id: tarball
+        working-directory: roc-ast
+        run: |
+          format=$(sed -n 's/^const flat_format = \([0-9]*\);$/\1/p' main.zig)
+          test -n "$format"
+          short=$(tr -d '[:space:]' < roc-version | sed 's/.*-//')
+          name="roc-ast-flat$format-$short-linux-x86_64.tar.gz"
+          tar -czf "$GITHUB_WORKSPACE/$name" -C "$GITHUB_WORKSPACE/out" bin/roc-ast
+          cd "$GITHUB_WORKSPACE" && sha256sum "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.tarball.outputs.name }}
+          path: ${{ steps.tarball.outputs.name }}
