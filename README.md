@@ -3,22 +3,21 @@
 **roc-ast prints the parse tree of any Roc file, as Roc's own parser builds
 it, as plain text that any program can read.**
 
-The code here was written by AI coding agents (Claude), with human supervision.
+The code here was written by AI coding agents (Claude), with human supervision. Point an agent at it, and at [FORMAT.md](FORMAT.md), to build a tool on its trees.
 
-It reads one file at a time and needs nothing else: not the app around it,
-not its packages, not code that type-checks. A file with a type error, a
-module of a half-finished refactor or a platform's header all have trees.
+It reads one file at a time, on its own: the app around it, its packages
+and its types stay out of it. A file with a type error, a module of a
+half-finished refactor or a platform's header all have trees.
 That is what a lint, a refactoring tool, a syntax colorer or a codemod
 needs: the real structure of the code, with every node's kind and span,
-from the parser the compiler itself uses, so it never disagrees with Roc
-about what the code says.
+from the parser the compiler itself uses, so it agrees with Roc about what
+the code says.
 
-It is one static binary for Linux on x86-64. You don't need Shale or any
-other tool to use it: download it, give it paths on stdin, and read the
-trees.
+It is one static binary for Linux on x86-64, and it stands alone: download
+it, give it paths on stdin, and read the trees.
 
-**It matches one Roc nightly.** The current release holds the parser of Roc
-`nightly-2026-10-30-0602c5f`. [The pin](#the-pin-one-roc-nightly) says what
+**It matches one Roc nightly**, the one [`roc-version`](roc-version) names
+and the output's first line repeats. [The pin](#the-pin-one-roc-nightly) says what
 that means for your code.
 
 ## An example
@@ -90,10 +89,10 @@ its line:
 A tool should rely on three things:
 
 - **The exit code.** 0 means every file's tree is on stdout. 1 means a file
-  did not parse cleanly, or could not be read, and stderr names it. That
-  file has no tree: a tree of broken code would be a guess. The trees of
-  the files before it are already written, whole, and the files after it
-  are not read.
+  had a parse problem, or could not be read, and stderr names it. That
+  file gets no tree, since a tree of broken code would be a guess. The
+  trees of the files before it are already written, whole, and the run
+  stops there.
 - **The first line.** It names the format and the Roc nightly. A tool should
   check both before it trusts a tree.
 - **Spans count bytes.** Columns are bytes from 1, and an end column is one
@@ -103,8 +102,8 @@ A tool should rely on three things:
 
 ## Install
 
-roc-ast runs on Linux on x86-64 only. The binary is static, so it runs on
-any distribution. To install the current release:
+roc-ast runs on Linux on x86-64. The binary is static, so it runs on any
+distribution. To install the current release:
 
     curl -fsSLO https://github.com/showell/roc-apps/releases/download/toolchain-2026-10-30-0602c5f/roc-ast-flat1-0602c5f-linux-x86_64.tar.gz
     echo "5ccb92676cecb41a8b9251737eb418470cd94d7557c9fc5ebf4e2d89e540f8c5  roc-ast-flat1-0602c5f-linux-x86_64.tar.gz" | sha256sum -c
@@ -121,7 +120,7 @@ roc-ast gives the syntax of any one file. roc-types gives the type of every
 expression and pattern, as Roc's checker infers it, but it needs a whole app
 that checks. So a tool reads the tree from roc-ast and asks roc-types only
 where a type decides: whether `List.map(xs, f)` can become `xs.map(f)`, say,
-depends on the type of `xs`, which no tree can tell. Both print spans the
+depends on the type of `xs`, which only the checker knows. Both print spans the
 same way, lines and byte columns from 1 with an exclusive end, so a tree's
 node and a type's record meet by their spans.
 
@@ -130,16 +129,15 @@ node and a type's record meet by their spans.
 Roc's new compiler is published as nightly builds, and its parser changes
 between them: a nightly may add syntax, rename a node or change a span.
 roc-ast is built from Roc's source at one commit, so its trees are that
-parser's and no other's. Code written for a later nightly may use syntax
-this parser refuses, and a tool written against these trees may need
+parser's. Code written for a later nightly may use syntax this parser
+refuses, and a tool written against these trees may need
 changes for another nightly's.
 
 So check the nightly in the first line of the output against the one your
 code is built with. It is also in [`roc-version`](roc-version). A new
 nightly needs a new build of roc-ast and a new release. The parser moves
 less than the checker, so roc-ast's pin can trail the compiler you build
-with, as long as the trees of your code come out whole; today it is at an
-earlier nightly than roc-types'.
+with, as long as the trees of your code come out whole.
 
 In this repository the pin is held in two places that must agree:
 
@@ -163,38 +161,23 @@ FORMAT.md, say how a printed item becomes a node or an attribute.
 check and rewrite Roc code, and they read it through roc-ast:
 
 - **The reader.** Shale's
-  [`roc_tree(paths)`](https://github.com/showell/shale/blob/master/src/shale_prelude_linux.shale)
+  [`roc_tree(paths)`](https://github.com/showell/shale/blob/master/c/preludes/linux.shale)
   runs `roc-ast --flat` once for all the paths and reads its lines in the
   host ([c/host/flat_tree.c](https://github.com/showell/shale/blob/master/c/host/flat_tree.c)),
   giving each file's nodes with their kinds, spans, parents, children and
   attributes. It checks the header's format number first. A file roc-ast
   refuses becomes that file's error, and the files after it are read in
-  another run, so one broken file never hides the rest.
+  another run, so every other file still has its tree.
   [parsed.shale](https://github.com/showell/shale/blob/master/cookbook/roc/parsed.shale)
   is the recipes' way in: it reports the refused files after the findings,
   and fails the run.
-- **The hunts.** The checks in the cookbook read trees, not text, so a
-  comment or a string never counts as code:
+- **The hunts.** The checks in the cookbook read trees, so comments and
+  strings stay out of the code they judge:
   [hunt_names](https://github.com/showell/shale/blob/master/cookbook/roc/hunt_names.shale)
-  (awkward names, such as a question that doesn't return a `Bool`),
-  [check_stacking](https://github.com/showell/shale/blob/master/cookbook/roc/check_stacking.shale)
-  (groups laid out against the stacking rule, and string literals told
-  apart in wide lines),
-  [find_deep_calls](https://github.com/showell/shale/blob/master/cookbook/roc/find_deep_calls.shale)
-  (calls nested three deep),
-  [find_extra_parens](https://github.com/showell/shale/blob/master/cookbook/roc/find_extra_parens.shale),
-  [find_unused_imports](https://github.com/showell/shale/blob/master/cookbook/roc/find_unused_imports.shale),
-  [find_bare_floats](https://github.com/showell/shale/blob/master/cookbook/roc/find_bare_floats.shale),
-  [find_unclear_names](https://github.com/showell/shale/blob/master/cookbook/roc/find_unclear_names.shale),
-  [check_errors](https://github.com/showell/shale/blob/master/cookbook/roc/check_errors.shale),
-  [check_boundaries](https://github.com/showell/shale/blob/master/cookbook/roc/check_boundaries.shale),
-  [check_families](https://github.com/showell/shale/blob/master/cookbook/roc/check_families.shale),
-  [check_name_types](https://github.com/showell/shale/blob/master/cookbook/roc/check_name_types.shale)
-  and
-  [check_vocabulary](https://github.com/showell/shale/blob/master/cookbook/roc/check_vocabulary.shale).
+  and the rest, each a line in the cookbook's README.
   [check_foreign_code](https://github.com/showell/shale/blob/master/cookbook/roc/check_foreign_code.shale)
-  runs them all over another project's tree. It only parses, so it needs no
-  compiler at that project's pin.
+  runs them all over another project's tree. It only parses, so it works on
+  a project at any pin.
 - **The rewrites and reports.**
   [rewrite_method_calls](https://github.com/showell/shale/blob/master/cookbook/roc/rewrite_method_calls.shale)
   finds each call to rewrite in the tree and asks roc-types whether the
@@ -206,10 +189,10 @@ check and rewrite Roc code, and they read it through roc-ast:
 The Roc apps in [roc-apps](https://github.com/showell/roc-apps) read trees
 the same way. The Safari tutorial's
 [color_roc.shale](https://github.com/showell/roc-apps/blob/master/canvas_apps/safari/tutorial/color_roc.shale)
-colors each Roc block of the book from roc-ast's tree, and the
-[syntax_color](https://github.com/showell/roc-apps/blob/master/syntax_color/README.md)
-package, a lexer written in Roc, is held byte for byte to what color_roc
-makes of the same code.
+colors each Roc block of the book from roc-ast's tree, and
+[roc-syntax-color](https://github.com/showell/roc-syntax-color), a lexer
+written in Roc, is held byte for byte to what color_roc makes of the same
+code.
 
 With Shale, `shale install.shale` in this checkout downloads the release,
 checks its sha256 and unpacks it at `roc-ast/bin/roc-ast` under Shale's
@@ -219,8 +202,8 @@ checks its sha256 and unpacks it at `roc-ast/bin/roc-ast` under Shale's
 
 Building roc-ast compiles Roc's parser and the modules it needs, and Roc's
 own build runs as a dependency's. It is built on GitHub Actions by
-[`.github/workflows/build.yml`](.github/workflows/build.yml), which runs only
-when started by hand. In a fork, run the `build` workflow from the Actions
+[`.github/workflows/build.yml`](.github/workflows/build.yml), which runs when
+started by hand. In a fork, run the `build` workflow from the Actions
 tab, or:
 
     gh workflow run build.yml -f ref=master
@@ -230,8 +213,8 @@ The workflow:
 - installs the Zig that `zig-version` names, the one the pinned Roc builds
   with (from [patched-zig-compiler](https://github.com/showell/patched-zig-compiler));
 - checks out Roc at the pinned commit in full and builds against it with
-  `--fork`, since the archive `build.zig.zon` names leaves out Roc's
-  `vendor/`;
+  `--fork`, since Roc's `vendor/` is outside the archive `build.zig.zon`
+  names;
 - builds static, for `x86_64-linux-musl` at the baseline CPU, ReleaseSafe;
 - runs a smoke test and the fixtures, so a build that fails them makes no
   artifact;
@@ -250,12 +233,12 @@ the tests.
 
 `shale test.shale` runs the installed roc-ast (or `exe=` another) on the
 fixtures in `tests/` and judges each run by its exit, the trees it writes
-and some of its lines. It needs Shale.
+and some of its lines. It runs on Shale.
 
 - `greet`: `tests/greet.roc`, a small module, parsed, its header and nodes
   checked;
-- `broken`: `tests/broken.roc`, which does not parse, refused with no tree;
-- `then_broken`: the two in one run, greet's tree written and broken's not;
+- `broken`: `tests/broken.roc`, a parse error, refused with no tree;
+- `then_broken`: the two in one run, greet's tree written, then the refusal;
 - `plain`: greet without `--flat`, as Roc's printer prints it;
 - `bad_arg`: an argument other than `--flat`, refused.
 
@@ -266,32 +249,9 @@ commands.
 
 Publishing is by hand. Download the workflow's artifact
 (`gh run download`), publish it as a release of this repository under a new
-name, and put its URL and sha256 in `release`. Then update this README: the
-nightly near the top, the example's header and the install commands. A
-published asset never changes. The current asset was published as a release
-of [roc-apps](https://github.com/showell/roc-apps), in its Roc toolchain
-release, before roc-ast had a repository of its own, so `release` still
-points there.
-
-## History
-
-roc-ast was written in roc-webbox on 2026-10-27 and moved into Shale's
-`tools/roc_ast` on 2026-11-01, where it gained `--flat`. This repository
-holds its history from that move on, split out of Shale's. The five commits
-before it are in
-[roc-webbox](https://github.com/showell/roc-webbox/commits/main/tools/roc_ast).
-
-## Files
-
-| file | what |
-|---|---|
-| `main.zig` | the program |
-| `build.zig`, `build.zig.zon` | the build, with Roc as a dependency at the pin |
-| `roc-version`, `zig-version` | the pins: Roc's nightly, and the Zig it builds with |
-| `release` | the published asset's URL and sha256 |
-| `install.shale`, `test.shale` | the install and the fixture test, in Shale |
-| `tests/` | the fixtures |
-| `FORMAT.md` | the flat output's contract |
+name, and put its URL and sha256 in `release`, then in this README's example
+header and install commands. A published asset stays as it is; `release`
+names where each one lives.
 
 ## License
 
