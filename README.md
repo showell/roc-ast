@@ -3,6 +3,8 @@
 **roc-ast prints the parse tree of any Roc file, as Roc's own parser builds
 it, as plain text that any program can read.**
 
+The code here was written by AI coding agents (Claude), with human supervision.
+
 It reads one file at a time and needs nothing else: not the app around it,
 not its packages, not code that type-checks. A file with a type error, a
 module of a half-finished refactor or a platform's header all have trees.
