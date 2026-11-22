@@ -7,12 +7,12 @@ const std = @import("std");
 
 // **BUILT WITH THE ZIG THE PINNED ROC BUILDS WITH** (its build.zig.zon's
 // minimum_zig_version), not this repo's: Roc's own build.zig runs as the
-// dependency's, and another Zig refuses it. The patched 0.17.0, which
+// dependency's, and another Zig refuses it. The patched 0.17.1, which
 // zig-version beside this file names for CI's install.
 comptime {
-    const want = std.SemanticVersion{ .major = 0, .minor = 17, .patch = 0 };
+    const want = std.SemanticVersion{ .major = 0, .minor = 17, .patch = 1 };
     if (@import("builtin").zig_version.order(want) != .eq)
-        @compileError("roc-ast builds with Zig 0.17.0, the pinned Roc's");
+        @compileError("roc-ast builds with Zig 0.17.1, the pinned Roc's");
 }
 
 pub fn build(b: *std.Build) void {
@@ -51,9 +51,23 @@ fn checkPin(b: *std.Build) []const u8 {
     const dir = b.root.root_dir.handle;
     const here = b.root.subPathOrDot();
     const version = std.mem.trim(u8, dir.readFileAlloc(io, b.pathJoin(&.{ here, "roc-version" }), b.allocator, .limited(256)) catch |e| std.process.fatal("roc-ast: cannot read its roc-version ({t})", .{e}), " \n");
-    const commit = version[(std.mem.lastIndexOfScalar(u8, version, '-') orelse std.process.fatal("roc-ast: roc-version `{s}` names no commit", .{version})) + 1 ..];
+    const commit = releaseCommit(version) orelse version[(std.mem.lastIndexOfScalar(u8, version, '-') orelse std.process.fatal("roc-ast: roc-version `{s}` names no commit", .{version})) + 1 ..];
     const zon = dir.readFileAlloc(io, b.pathJoin(&.{ here, "build.zig.zon" }), b.allocator, .limited(64 * 1024)) catch |e| std.process.fatal("roc-ast: cannot read build.zig.zon ({t})", .{e});
     if (std.mem.indexOf(u8, zon, b.fmt("/archive/{s}", .{commit})) == null)
         std.process.fatal("roc-ast: roc-version pins Roc {s}, and build.zig.zon's roc is another commit: `zig fetch --save=roc https://github.com/roc-lang/roc/archive/<that commit, in full>.tar.gz`", .{commit});
     return version;
+}
+
+/// A Roc release's tag names no commit, so each release a roc-version may
+/// pin is here with the commit roc-lang/roc's tag points at, the one its
+/// binaries were built from. A nightly's pin ends in its commit instead.
+const release_commits = [_]struct { []const u8, []const u8 }{
+    .{ "0.1.0_RC1", "15177e91f62cafddf5336c455e00e9f05427ac16" },
+};
+
+fn releaseCommit(version: []const u8) ?[]const u8 {
+    for (release_commits) |release| {
+        if (std.mem.eql(u8, release[0], version)) return release[1];
+    }
+    return null;
 }

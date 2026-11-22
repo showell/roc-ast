@@ -2,11 +2,11 @@
     .name = .roc_ast,
     .version = "0.0.0",
     .fingerprint = 0x48aa8f9d3e30c80a,
-    .minimum_zig_version = "0.17.0",
+    .minimum_zig_version = "0.17.1",
     .dependencies = .{
         .roc = .{
-            .url = "https://github.com/roc-lang/roc/archive/0602c5fcce7f766895837fc6ae0f2df5d69ab0dd.tar.gz",
-            .hash = "roc-0.0.0-NAC9wyEHGQTHgPVeQ0WAldUPjyeLP3bLFJY_TwykFnnC",
+            .url = "https://github.com/roc-lang/roc/archive/15177e91f62cafddf5336c455e00e9f05427ac16.tar.gz",
+            .hash = "roc-0.0.0-NAC9w5OhkQOFw5MBykl8Ol0y7dgwo6QUWq-12U7ebO0J",
         },
     },
     .paths = .{ "build.zig", "build.zig.zon", "main.zig" },
