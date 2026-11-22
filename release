@@ -1,5 +1,5 @@
 # The published roc-ast asset, read by install.shale: its URL and its
 # sha256, each `key value` on a line. A TODO is refused. A published asset
 # never changes, so this names the release it was first published under.
-url https://github.com/showell/roc-apps/releases/download/toolchain-2026-10-30-0602c5f/roc-ast-flat1-0602c5f-linux-x86_64.tar.gz
-sha256 5ccb92676cecb41a8b9251737eb418470cd94d7557c9fc5ebf4e2d89e540f8c5
+url https://github.com/showell/roc-ast/releases/download/roc-ast-flat1-0.1.0_RC1/roc-ast-flat1-0.1.0_RC1-linux-x86_64.tar.gz
+sha256 820c8f41e478f7343f8fba62c3a0cfc961301654e07888dc49a3319bdc67b751
